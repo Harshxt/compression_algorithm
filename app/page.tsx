@@ -8,5 +8,6 @@ export default function Home() {
       <Navbar />
       <FileDropper />
     </main>
-  );
+  ); 
 }
+ 
