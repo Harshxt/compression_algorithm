@@ -1,7 +1,8 @@
 'use client';
-import { useRef, useState } from "react";
-export default function FileDropper() {
-    const [files, setFiles] = useState([]);
+
+import { useRef } from "react";
+
+export default function FileDropper({ onFilesAdd }) {
     const fileInputRef = useRef(null);
 
     const openPicker = () => {
@@ -9,8 +10,10 @@ export default function FileDropper() {
     };
 
     const handleFiles = (selectedFiles) => {
-        const picked = Array.from(selectedFiles || []);
-        setFiles((prevFiles) => [...prevFiles, ...picked]);
+        const picked = Array.from(selectedFiles ?? []);
+        if (picked.length > 0 && typeof onFilesAdd === "function") {
+            onFilesAdd(picked);
+        }
 
         picked.forEach(async (file) => {
             console.log('Name:', file.name);
@@ -47,7 +50,6 @@ export default function FileDropper() {
                     <p className="text-gray-400 text-center">or click to select files</p>
                 </div>
             </div>
-            
         </div>
     );
 }
