@@ -5,6 +5,7 @@ import { useState } from "react";
 import Navbar from "./components/Navbar";
 import FileDropper from "./components/FileDropper";
 import FileCardList from "./components/FileCardList";
+import ProcessButton from "./components/ProcessButton";
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
@@ -18,10 +19,12 @@ export default function Home() {
   };
 
   return (
-    <main>
+    <main className="m-4 gap-4 flex flex-col">
       <Navbar />
       <FileDropper onFilesAdd={handleFilesAdd} />
+      <ProcessButton />
       <FileCardList files={files} onFileRemove={handleFileRemove} />
+      
     </main>
   );
 }

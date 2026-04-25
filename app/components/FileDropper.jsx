@@ -40,7 +40,7 @@ export default function FileDropper({ onFilesAdd }) {
     }
 
     return (
-        <div className="min-h-100 p-4 m-4 bg-gray-800 rounded-lg shadow-lg ring-1 ring-white/10 flex items-center justify-center align-center">
+        <div className="min-h-100 p-4 bg-gray-800 rounded-lg shadow-lg ring-1 ring-white/10 flex items-center justify-center align-center">
             <input
                 ref={fileInputRef} type="file" className="hidden" onChange={onInputChange} multiple />
             <div role="button" tabIndex={0} onClick={openPicker} onDrop={onDrop} onDragOver={onDragOver} onKeyDown={(e) => e.key === 'Enter' && openPicker()}>
