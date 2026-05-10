@@ -7,15 +7,38 @@ import FileDropper from "./components/FileDropper";
 import FileCardList from "./components/FileCardList";
 import ProcessButton from "./components/ProcessButton";
 
+
+
 export default function Home() {
-  const [files, setFiles] = useState<File[]>([]);
+  interface QueueItem {
+    id: string;
+    file: File;
+    status: 'queued' | 'running' | 'completed' | 'error';
+    progress: number;
+    outputUrl?: string;
+    originalSize: number;
+    compressedSize?: number;
+    error?: string;
+  }
+
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+
+
+
 
   const handleFilesAdd = (newFiles: File[]) => {
-    setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+    const newItems = newFiles.map((file) => ({
+      id: (Date.now() + Math.random()).toString(),
+      file,
+      status: 'queued' as const,
+      progress: 0,
+      originalSize: file.size,
+    }));
+    setQueueItems((prev) => [...prev, ...newItems]);
   };
 
-  const handleFileRemove = (indexToRemove: number) => {
-    setFiles((prevFiles) => prevFiles.filter((_, i) => i !== indexToRemove));
+  const handleFileRemove = (indexToRemove: string) => {
+    setQueueItems((prevItems) => prevItems.filter((item) => item.id !== indexToRemove));
   };
 
   return (
@@ -23,8 +46,8 @@ export default function Home() {
       <Navbar />
       <FileDropper onFilesAdd={handleFilesAdd} />
       <ProcessButton />
-      <FileCardList files={files} onFileRemove={handleFileRemove} />
-      
+      <FileCardList items={queueItems} onFileRemove={handleFileRemove} />
+
     </main>
   );
 }

@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "app/components/FileCard.jsx", "app/components/FileCardList.jsx", "app/components/FileDropper.jsx"  ],
   "exclude": ["node_modules"]
 }
