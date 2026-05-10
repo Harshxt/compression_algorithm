@@ -1,6 +1,6 @@
 "use client";
 
-const { useContext, createContext, useState } = require("react");
+import { useContext, createContext, useState } from "react";
 
 const ProcessingContext = createContext(undefined);
 
