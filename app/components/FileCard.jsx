@@ -1,4 +1,6 @@
-import { MdDeleteOutline } from "react-icons/md";
+import { MdDeleteOutline, MdDownload } from "react-icons/md";
+import { useEffect } from "react";
+
 export default function FileCard({ item, onDelete }) {
     const {file, status, progress, originalSize, compressedSize, error} = item;
     const fileType = file.type
@@ -38,13 +40,26 @@ export default function FileCard({ item, onDelete }) {
             {compressedSize && ` → Compressed: ${formatSize(compressedSize)}`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700 self-center"
-        >
-          <MdDeleteOutline />
-        </button>
+        <div className="flex items-center gap-2">
+          {item.outputUrl && status === 'completed' && (
+            <a
+              href={item.outputUrl}
+              download={`compressed_${file.name}`}
+              className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 self-center flex items-center"
+            >
+              <MdDownload />
+            </a>
+          )}
+
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={status !== 'queued'}
+            className={`px-3 py-1.5 rounded text-white self-center ${status !== 'queued' ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            <MdDeleteOutline />
+          </button>
+        </div>
       </div>
 
       {/* Progress bar (only show when running) */}
@@ -64,3 +79,10 @@ export default function FileCard({ item, onDelete }) {
     </div>
   );
 }
+
+// revoke object URL on unmount if present
+useEffect(() => {
+  return () => {
+    // nothing to do here — revocation handled by parent on remove
+  };
+}, []);

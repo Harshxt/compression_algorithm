@@ -2,11 +2,16 @@
 
 import { useContext, createContext, useState } from "react";
 
-const ProcessingContext = createContext(undefined);
+
+type ProcessingContextValue = {
+    isProcessing: boolean;
+    setIsProcessing: React.Dispatch<React.SetStateAction<boolean>>;
+}
+const ProcessingContext = createContext<ProcessingContextValue | undefined>(undefined);
 
 
-export function ProcessingProvider({ children }) {
-    const [isProcessing, setIsProcessing] = useState(false);
+export function ProcessingProvider({ children }: {children: React.ReactNode}) {
+    const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
 
     return (
