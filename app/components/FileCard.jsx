@@ -1,5 +1,4 @@
 import { MdDeleteOutline, MdDownload } from "react-icons/md";
-import { useEffect } from "react";
 
 export default function FileCard({ item, onDelete }) {
     const {file, status, progress, originalSize, compressedSize, error} = item;
@@ -79,10 +78,3 @@ export default function FileCard({ item, onDelete }) {
     </div>
   );
 }
-
-// revoke object URL on unmount if present
-useEffect(() => {
-  return () => {
-    // nothing to do here — revocation handled by parent on remove
-  };
-}, []);

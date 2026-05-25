@@ -1,4 +1,5 @@
-import { createFFmpeg, fetchFile } from "@ffmpeg/ffmpeg";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
 
 let ffmpeg = null;
 
@@ -25,9 +26,9 @@ function throttle(fn, wait) {
 }
 
 export async function initFFmpeg() {
-  if (ffmpeg && ffmpeg.isLoaded()) return ffmpeg;
+  if (ffmpeg && ffmpeg.loaded) return ffmpeg;
 
-  ffmpeg = createFFmpeg({ log: true });
+  ffmpeg = new FFmpeg();
 
   await ffmpeg.load();
   return ffmpeg;
@@ -40,34 +41,38 @@ export async function compressVideo(inputFile, preset = "medium", onProgress) {
 
   // prepare throttled progress handler (500ms)
   const throttledProgress = typeof onProgress === "function" ? throttle((pct) => onProgress(pct), 500) : null;
+  let progressHandler = null;
   if (throttledProgress) {
-    ff.setProgress(({ ratio }) => {
+    progressHandler = ({ progress }) => {
+      // v0.12 emits progress in [0..1]
+      const ratio = typeof progress === "number" ? progress : 0;
       throttledProgress(Math.round((ratio || 0) * 100));
-    });
+    };
+    ff.on("progress", progressHandler);
   }
 
   try {
     // write file to ffmpeg FS
-    ff.FS("writeFile", inputName, await fetchFile(inputFile));
+    await ff.writeFile(inputName, await fetchFile(inputFile));
 
     // run compression
-    await ff.run(
+    await ff.exec([
       "-i", inputName,
       "-c:v", "libx264",
       "-crf", "28",
       "-preset", preset,
       "-c:a", "aac",
       "-b:a", "128k",
-      outputName
-    );
+      outputName,
+    ]);
 
     // read output
-    const data = ff.FS("readFile", outputName);
-    const blob = new Blob([data.buffer], { type: "video/mp4" });
+    const data = await ff.readFile(outputName);
+    const blob = new Blob([data], { type: "video/mp4" });
 
     // cleanup
-    try { ff.FS("unlink", inputName); } catch (e) {}
-    try { ff.FS("unlink", outputName); } catch (e) {}
+    try { await ff.deleteFile(inputName); } catch (e) {}
+    try { await ff.deleteFile(outputName); } catch (e) {}
 
     return blob;
   } catch (err) {
@@ -76,6 +81,6 @@ export async function compressVideo(inputFile, preset = "medium", onProgress) {
   } finally {
     // cleanup throttling and ffmpeg progress handler
     if (throttledProgress && typeof throttledProgress.cancel === 'function') throttledProgress.cancel();
-    if (typeof onProgress === "function") ff.setProgress(() => {});
+    if (progressHandler) ff.off("progress", progressHandler);
   }
 }
