@@ -1,19 +1,35 @@
+"use client";
 import { MdDeleteOutline, MdDownload } from "react-icons/md";
 
 export default function FileCard({ item, onDelete }) {
-    const {file, status, progress, originalSize, compressedSize, error} = item;
-    const fileType = file.type
-        ? file.type.split("/")[1]?.split("+")[0] || file.type
-        : "Unknown";
+  const { file, status, progress, originalSize, compressedSize, error } = item;
+  const fileType = file.type
+    ? file.type.split("/")[1]?.split("+")[0] || file.type
+    : "Unknown";
 
-         const formatSize = (bytes) => {
+  const formatSize = (bytes) => {
     if (bytes >= 1024 * 1024) {
       return (bytes / (1024 * 1024)).toFixed(2) + " MB";
     }
     return (bytes / 1024).toFixed(2) + " KB";
   };
 
-   return (
+  const handleDownload = (e) => {
+    e.preventDefault();
+    if (!item.outputUrl) return;
+    try {
+      const a = document.createElement("a");
+      a.href = item.outputUrl;
+      a.download = `compressed_${file.name}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {
+      window.open(item.outputUrl, "_blank");
+    }
+  }
+
+  return (
     <div className="p-4 border rounded-lg border-gray-600 w-full bg-gray-700 flex flex-col gap-3">
       {/* File info row */}
       <div className="flex flex-row justify-between items-center">
@@ -24,13 +40,12 @@ export default function FileCard({ item, onDelete }) {
               <p className="w-fit text-sm text-gray-400">Type: {fileType}</p>
             </div>
             {/* Status badge */}
-            <div className={`m-0.5 w-fit rounded-md px-2 py-1 text-xs font-semibold ${
-              status === 'queued' ? 'bg-yellow-500/20 border border-yellow-500/30 text-yellow-400' :
+            <div className={`m-0.5 w-fit rounded-md px-2 py-1 text-xs font-semibold ${status === 'queued' ? 'bg-yellow-500/20 border border-yellow-500/30 text-yellow-400' :
               status === 'running' ? 'bg-blue-500/20 border border-blue-500/30 text-blue-400' :
-              status === 'completed' ? 'bg-green-500/20 border border-green-500/30 text-green-400' :
-              status === 'error' ? 'bg-red-500/20 border border-red-500/30 text-red-400' :
-              'bg-gray-500/20'
-            }`}>
+                status === 'completed' ? 'bg-green-500/20 border border-green-500/30 text-green-400' :
+                  status === 'error' ? 'bg-red-500/20 border border-red-500/30 text-red-400' :
+                    'bg-gray-500/20'
+              }`}>
               {status}
             </div>
           </div>
@@ -39,22 +54,22 @@ export default function FileCard({ item, onDelete }) {
             {compressedSize && ` → Compressed: ${formatSize(compressedSize)}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {item.outputUrl && status === 'completed' && (
-            <a
-              href={item.outputUrl}
-              download={`compressed_${file.name}`}
-              className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 self-center flex items-center"
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="px-3 py-1.5 rounded text-white bg-green-600 hover:bg-green-700 cursor-pointer"
             >
               <MdDownload />
-            </a>
+            </button>
           )}
 
           <button
             type="button"
             onClick={onDelete}
             disabled={status !== 'queued'}
-            className={`px-3 py-1.5 rounded text-white self-center ${status !== 'queued' ? 'bg-red-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+            className={`px-3 py-1.5 rounded text-white self-center ${status !== 'queued' ? 'bg-red-400 cursor-not-allowed disabled:bg-red-800/50' : 'bg-red-600 hover:bg-red-700'}`}
           >
             <MdDeleteOutline />
           </button>
