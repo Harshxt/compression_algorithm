@@ -6,7 +6,7 @@ import Navbar from "./components/Navbar";
 import FileDropper from "./components/FileDropper";
 import FileCardList from "./components/FileCardList";
 import ProcessButton from "./components/ProcessButton";
-import { compressVideo, } from "./lib/ffmpegService";
+import { compressVideo } from "./lib/ffmpegService";
 import { useProcessing } from "./context/ProcessingContext";
 
 
