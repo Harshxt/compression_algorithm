@@ -78,11 +78,15 @@ export default function FileCard({ item, onDelete }) {
 
       {/* Progress bar (only show when running) */}
       {status === 'running' && (
-        <div className="w-full bg-gray-600 rounded-full h-2">
-          <div
-            className="bg-blue-500 h-2 rounded-full transition-all"
-            style={{ width: `${progress}%` }}
-          />
+        <div className=" flex w-full rounded-full h-2 items-baseline gap-2 py-5">
+
+          <div className="w-full bg-gray-600 rounded-full h-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-sm mt-1">{progress}%</p>
         </div>
       )}
 

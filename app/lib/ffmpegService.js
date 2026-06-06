@@ -2,7 +2,9 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 
 let ffmpeg = null;
-
+let currentFFmpeg = null;
+let currentReject = null;
+let isAborted = false;
 // simple throttling helper (500ms default used below)
 function throttle(fn, wait) {
   let last = 0;
@@ -35,52 +37,74 @@ export async function initFFmpeg() {
 }
 
 export async function compressVideo(inputFile, preset = "medium", onProgress) {
-  const ff = await initFFmpeg();
-  const inputName = `in_${Date.now()}_${inputFile.name}`;
-  const outputName = `out_${Date.now()}.mp4`;
+  return new Promise(async (resolve, reject) => {
+    currentReject = reject;
+    const ff = await initFFmpeg();
+    currentFFmpeg = ff;
+    isAborted = false;
+    const inputName = `in_${Date.now()}_${inputFile.name}`;
+    const outputName = `out_${Date.now()}.mp4`;
 
-  // prepare throttled progress handler (500ms)
-  const throttledProgress = typeof onProgress === "function" ? throttle((pct) => onProgress(pct), 500) : null;
-  let progressHandler = null;
-  if (throttledProgress) {
-    progressHandler = ({ progress }) => {
-      // v0.12 emits progress in [0..1]
-      const ratio = typeof progress === "number" ? progress : 0;
-      throttledProgress(Math.round((ratio || 0) * 100));
-    };
-    ff.on("progress", progressHandler);
-  }
+    // prepare throttled progress handler (500ms)
+    const throttledProgress = typeof onProgress === "function" ? throttle((pct) => onProgress(pct), 500) : null;
+    let progressHandler = null;
+    if (throttledProgress) {
+      progressHandler = ({ progress }) => {
+        // v0.12 emits progress in [0..1]
+        const ratio = typeof progress === "number" ? progress : 0;
+        throttledProgress(Math.round((ratio || 0) * 100));
+      };
+      ff.on("progress", progressHandler);
+    }
 
-  try {
-    // write file to ffmpeg FS
-    await ff.writeFile(inputName, await fetchFile(inputFile));
+    try {
+      // write file to ffmpeg FS
+      await ff.writeFile(inputName, await fetchFile(inputFile));
+      if (isAborted) throw new Error("Canceled");
 
-    // run compression
-    await ff.exec([
-      "-i", inputName,
-      "-c:v", "libx264",
-      "-crf", "28",
-      "-preset", preset,
-      "-c:a", "aac",
-      "-b:a", "128k",
-      outputName,
-    ]);
+      // run compression
+      await ff.exec([
+        "-i", inputName,
+        "-c:v", "libx264",
+        "-crf", "28",
+        "-preset", preset,
+        "-c:a", "aac",
+        "-b:a", "128k",
+        outputName,
+      ]);
+      if (isAborted) throw new Error("Canceled");
 
-    // read output
-    const data = await ff.readFile(outputName);
-    const blob = new Blob([data], { type: "video/mp4" });
 
-    // cleanup
-    try { await ff.deleteFile(inputName); } catch (e) {}
-    try { await ff.deleteFile(outputName); } catch (e) {}
+      // read output
+      const data = await ff.readFile(outputName);
+      if (isAborted) throw new Error("Canceled");
 
-    return blob;
-  } catch (err) {
-    console.error("FFmpeg compression error:", err);
-    throw err;
-  } finally {
-    // cleanup throttling and ffmpeg progress handler
-    if (throttledProgress && typeof throttledProgress.cancel === 'function') throttledProgress.cancel();
-    if (progressHandler) ff.off("progress", progressHandler);
-  }
+      const blob = new Blob([data], { type: "video/mp4" });
+
+      // cleanup
+      try { await ff.deleteFile(inputName); } catch (e) { }
+      try { await ff.deleteFile(outputName); } catch (e) { }
+
+      resolve(blob);
+    } catch (err) {
+      console.log("Canceled or error during compression:", err);
+
+      throw err;
+    } finally {
+      currentFFmpeg = null;
+      currentReject = null;
+      isAborted = false;
+      // cleanup throttling and ffmpeg progress handler
+      if (throttledProgress && typeof throttledProgress.cancel === 'function') throttledProgress.cancel();
+      if (progressHandler) ff.off("progress", progressHandler);
+    }
+  })
+}
+
+export function abortCurrentRun() {
+  isAborted = true;
+  if(currentFFmpeg?.terminate()) 
+    currentFFmpeg.terminate();
+
+    if(typeof currentReject ==="function") currentReject(new Error("Canceled"));
 }

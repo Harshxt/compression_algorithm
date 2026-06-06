@@ -11,11 +11,12 @@ import { useProcessing } from "./context/ProcessingContext";
 
 
 
+
 export default function Home() {
   interface QueueItem {
     id: string;
     file: File;
-    status: 'queued' | 'running' | 'completed' | 'error';
+    status: 'queued' | 'running' | 'completed' | 'error' | 'Canceled';
     progress: number;
     outputUrl?: string;
     originalSize: number;
@@ -28,7 +29,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!isProcessing) return;
-    if(!queueItems.some(i => i.status==="queued")){
+    if (!queueItems.some(i => i.status === "queued")) {
       setIsProcessing(false);
       return;
     }
@@ -51,7 +52,16 @@ export default function Home() {
           setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "completed", progress: 100, outputUrl: url, compressedSize: blob.size } : it));
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "error", error: message } : it));
+          if (message === "Canceled") {
+            setQueueItems(prev =>
+              prev.map(it => it.id === id ? { ...it, status: "error", error: message } : it)
+            );
+            setIsProcessing(false);
+            break;
+          }
+          setQueueItems(prev =>
+            prev.map(it => it.id === id ? { ...it, status: "error", error: message } : it)
+          );
         }
       }
       setIsProcessing(false);
@@ -69,13 +79,13 @@ export default function Home() {
     setQueueItems((prev) => [...prev, ...newItems]);
   };
 
-const handleFileRemove = (idToRemove: string) => {
-  setQueueItems(prev => {
-    const item = prev.find(i => i.id === idToRemove);
-    if (item?.outputUrl) URL.revokeObjectURL(item.outputUrl);
-    return prev.filter(i => i.id !== idToRemove);
-  });
-};
+  const handleFileRemove = (idToRemove: string) => {
+    setQueueItems(prev => {
+      const item = prev.find(i => i.id === idToRemove);
+      if (item?.outputUrl) URL.revokeObjectURL(item.outputUrl);
+      return prev.filter(i => i.id !== idToRemove);
+    });
+  };
 
   return (
     <main className="m-4 gap-4 flex flex-col">
