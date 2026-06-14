@@ -72,12 +72,12 @@ export async function compressVideo(inputFile, preset = "medium", onProgress) {
         "-b:a", "128k",
         outputName,
       ]);
-      if (isAborted) throw new Error("Canceled");
+      if (isAborted) currentReject(new Error("Canceled"));
 
 
       // read output
       const data = await ff.readFile(outputName);
-      if (isAborted) throw new Error("Canceled");
+      if (isAborted) currentReject(new Error("Canceled"));
 
       const blob = new Blob([data], { type: "video/mp4" });
 
@@ -89,7 +89,7 @@ export async function compressVideo(inputFile, preset = "medium", onProgress) {
     } catch (err) {
       console.log("Canceled or error during compression:", err);
 
-      throw err;
+      currentReject(err);
     } finally {
       currentFFmpeg = null;
       currentReject = null;
