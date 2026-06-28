@@ -6,7 +6,7 @@ import Navbar from "./components/Navbar";
 import FileDropper from "./components/FileDropper";
 import FileCardList from "./components/FileCardList";
 import ProcessButton from "./components/ProcessButton";
-import { compressVideo } from "./lib/ffmpegService";
+import { WorkerFactory } from "./lib/ffmpegService";
 import { useProcessing } from "./context/ProcessingContext";
 
 
@@ -29,43 +29,52 @@ export default function Home() {
 
   useEffect(() => {
     if (!isProcessing) return;
-    if (!queueItems.some(i => i.status === "queued")) {
+
+    const pendingItems = queueItems.filter(i => i.status === 'queued');
+    if (pendingItems.length === 0) {
       setIsProcessing(false);
       return;
     }
 
-    const snapshot = queueItems.slice();
+    const CONCURRENCY_LIMIT = 2;
     (async () => {
-      for (const item of snapshot) {
-        if (item.status !== "queued") continue;
+      const queueToProcess = [...pendingItems];
 
-        const id = item.id;
+      const processQueue = async () => {
+        const worker = WorkerFactory.createWorker();
 
-        setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "running", progress: 0 } : it));
+        while (queueToProcess.length > 0) {
+          const item = queueToProcess.shift();
+          if (!item) break;
 
-        try {
-          const blob = await compressVideo(item.file, "medium", (pct: number) => {
-            setQueueItems(prev => prev.map(it => it.id === id ? { ...it, progress: pct } : it));
-          });
+          const id = item.id;
 
-          const url = URL.createObjectURL(blob);
-          setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "completed", progress: 100, outputUrl: url, compressedSize: blob.size } : it));
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          if (message === "Canceled") {
-            setQueueItems(prev =>
-              prev.map(it => it.id === id ? { ...it, status: "error", error: message } : it)
-            );
-            setIsProcessing(false);
-            break;
+          setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "running", progress: 0 } : it));
+
+          try {
+            const blob = await worker.compress(item.file, "medium", (pct: number) => {
+              setQueueItems(prev => prev.map(it => it.id === id ? { ...it, progress: pct } : it));
+            })
+
+            const url = URL.createObjectURL(blob);
+            setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "completed", progress: 100, outputUrl: url, compressedSize: blob.size } : it));
+
+
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            setQueueItems(prev => prev.map(it => it.id === id ? { ...it, status: "error", error: message } : it));
+            if (message == 'Canceled') {
+              queueToProcess.length = 0;
+              break;
+            }
           }
-          setQueueItems(prev =>
-            prev.map(it => it.id === id ? { ...it, status: "error", error: message } : it)
-          );
         }
-      }
+      };
+     const workerLoops = Array.from({length: Math.min(CONCURRENCY_LIMIT, pendingItems.length) }, processQueue);
+      await Promise.all(workerLoops);
       setIsProcessing(false);
-    })();
+    }
+    )();
   }, [isProcessing]);
 
   const handleFilesAdd = (newFiles: File[]) => {

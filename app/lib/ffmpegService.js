@@ -1,10 +1,10 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
 
-let ffmpeg = null;
-let currentFFmpeg = null;
-let currentReject = null;
-let isAborted = false;
+// let ffmpeg = null;
+// let currentFFmpeg = null;
+// let currentReject = null;
+// let isAborted = false;
 // simple throttling helper (500ms default used below)
 function throttle(fn, wait) {
   let last = 0;
@@ -27,84 +27,100 @@ function throttle(fn, wait) {
   return throttled;
 }
 
-export async function initFFmpeg() {
-  if (ffmpeg && ffmpeg.loaded) return ffmpeg;
+const activeWorkers = new Set();
+export const WorkerFactory = {
+  createWorker: () => {
+    let ff = null;
+    let isAborted = false;
+    let rejectPromise = null;
 
-  ffmpeg = new FFmpeg();
-
-  await ffmpeg.load();
-  return ffmpeg;
-}
-
-export async function compressVideo(inputFile, preset = "medium", onProgress) {
-  return new Promise(async (resolve, reject) => {
-    currentReject = reject;
-    const ff = await initFFmpeg();
-    currentFFmpeg = ff;
-    isAborted = false;
-    const inputName = `in_${Date.now()}_${inputFile.name}`;
-    const outputName = `out_${Date.now()}.mp4`;
-
-    // prepare throttled progress handler (500ms)
-    const throttledProgress = typeof onProgress === "function" ? throttle((pct) => onProgress(pct), 500) : null;
-    let progressHandler = null;
-    if (throttledProgress) {
-      progressHandler = ({ progress }) => {
-        // v0.12 emits progress in [0..1]
-        const ratio = typeof progress === "number" ? progress : 0;
-        throttledProgress(Math.round((ratio || 0) * 100));
-      };
-      ff.on("progress", progressHandler);
-    }
-
-    try {
-      // write file to ffmpeg FS
-      await ff.writeFile(inputName, await fetchFile(inputFile));
-      if (isAborted) throw new Error("Canceled");
-
-      // run compression
-      await ff.exec([
-        "-i", inputName,
-        "-c:v", "libx264",
-        "-crf", "28",
-        "-preset", preset,
-        "-c:a", "aac",
-        "-b:a", "128k",
-        outputName,
-      ]);
-      if (isAborted) currentReject(new Error("Canceled"));
+    const worker = {
+      async compress(inputFile, preset = "medium", onProgress) {
+        activeWorkers.add(worker);
+        return new Promise(async (resolve, reject) => {
+          rejectPromise = reject;
+           ff = new FFmpeg();
+          isAborted = false;
 
 
-      // read output
-      const data = await ff.readFile(outputName);
-      if (isAborted) currentReject(new Error("Canceled"));
+          const inputName = `in_${Date.now()}_${inputFile.name}`;
+          const outputName = `out_${Date.now()}.mp4`;
 
-      const blob = new Blob([data], { type: "video/mp4" });
+          // prepare throttled progress handler (500ms)
+          const throttledProgress = typeof onProgress === "function" ? throttle((pct) => onProgress(pct), 500) : null;
+          let progressHandler = null;
+          if (throttledProgress) {
+            progressHandler = ({ progress }) => {
+              // v0.12 emits progress in [0..1]
+              const ratio = typeof progress === "number" ? progress : 0;
+              throttledProgress(Math.round((ratio || 0) * 100));
+            };
+            ff.on("progress", progressHandler);
+          }
 
-      // cleanup
-      try { await ff.deleteFile(inputName); } catch (e) { }
-      try { await ff.deleteFile(outputName); } catch (e) { }
+          try {
+            await ff.load();
+            // write file to ffmpeg FS
+            await ff.writeFile(inputName, await fetchFile(inputFile));
+            if (isAborted) throw new Error("Canceled");
 
-      resolve(blob);
-    } catch (err) {
-      console.log("Canceled or error during compression:", err);
+            // run compression
+            await ff.exec([
+              "-i", inputName,
+              "-c:v", "libx264",
+              "-crf", "28",
+              "-preset", preset,
+              "-c:a", "aac",
+              "-b:a", "128k",
+              outputName,
+            ]);
+            if (isAborted) throw new Error("Canceled");
 
-      currentReject(err);
-    } finally {
-      currentFFmpeg = null;
-      currentReject = null;
-      isAborted = false;
-      // cleanup throttling and ffmpeg progress handler
-      if (throttledProgress && typeof throttledProgress.cancel === 'function') throttledProgress.cancel();
-      if (progressHandler) ff.off("progress", progressHandler);
-    }
-  })
-}
+
+            // read output
+            const data = await ff.readFile(outputName);
+            if (isAborted) throw new Error("Canceled");
+
+            const blob = new Blob([data], { type: "video/mp4" });
+
+            // cleanup
+            try { await ff.deleteFile(inputName); } catch (e) { }
+            try { await ff.deleteFile(outputName); } catch (e) { }
+
+            resolve(blob);
+          } catch (err) {
+            console.log("Canceled or error during compression:", err);
+
+            rejectPromise(err);
+          } finally {
+            try { await ff.deleteFile(inputName); } catch (e) { }
+            try { await ff.deleteFile(outputName); } catch (e) { }
+            if (throttledProgress && typeof throttledProgress.cancel === 'function') throttledProgress.cancel();
+            if (progressHandler) ff.off("progress", progressHandler);
+            try { ff.terminate(); } catch (e) { }
+            ff = null;
+            activeWorkers.delete(worker);
+          }
+        }
+
+        )
+
+
+      },
+      abort() {
+        isAborted = true;
+        try { ff?.terminate(); } catch (e) { };
+        if (rejectPromise) rejectPromise(new Error("Canceled"));
+      }
+    };
+    return worker;
+  }
+};
+
+
 
 export function abortCurrentRun() {
-  isAborted = true;
-  if(currentFFmpeg?.terminate()) 
-    currentFFmpeg.terminate();
+  activeWorkers.forEach(worker => { worker.abort() });
+  activeWorkers.clear();
 
-    if(typeof currentReject ==="function") currentReject(new Error("Canceled"));
 }
